@@ -20,6 +20,7 @@ difference dw ?
 start:
     call get_filename
     call open_file
+    call read_file
     call close_file
     call writing_string
 changing_string:
