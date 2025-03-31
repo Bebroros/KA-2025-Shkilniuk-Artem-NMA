@@ -256,6 +256,12 @@ print_message proc
     mov dx, offset string
     mov ax, 0900h
     int 21h
+
+    mov ah, 02h
+    mov dl, 0Dh
+    int 21h
+    mov dl, 0Ah
+    int 21h
     ret
 print_message endp
 
