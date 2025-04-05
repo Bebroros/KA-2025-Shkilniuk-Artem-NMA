@@ -1,28 +1,54 @@
-.model small
-stack 100h
-.data
-string db 32768 dup(?), '$'
-rule_count dw 0d
-rule_before dw ?
-rule_after dw ?
-len_of_string dw ?
-len_before dw ?
-len_after dw ?
-filename db 255 dup(?), '$'
-buffer db 32000 dup(?)
-buffer_size dw 32000
-start_of_rules dw ?
-file_handle dw ?
-ending_flag db 0d
-applying_flag db 0d
-difference dw ?
+.model tiny
 .code
+org 100h
 start:
-    call get_filename
-    call open_file
-    call read_file
-    call close_file
-    call writing_string
+    xor ch, ch
+    mov cl, ds:[80h]
+    dec cl
+    jle open_file
+    
+    mov si, 82h
+    lea di, filename
+    cld
+    rep movsb
+
+    mov [di], byte ptr '$'
+open_file:
+    mov ax, 3d00h
+    lea dx, filename
+    int 21h
+    mov file_handle, ax
+read_file:
+    mov bx, offset end_of_code
+    mov buffer, bx  ; place to buffer the address of the end of code segment
+    add bx, 32000
+    mov string, bx  ; place to string the address of the end of the buffer
+
+    mov ax, 3F00h
+    mov bx, file_handle
+    mov dx, buffer
+    mov cx, 5000
+    int 21h
+close_file:
+    mov ax, 3E00h
+    mov bx, file_handle
+    int 21h
+writing_string:
+    mov si, buffer
+    mov cx, word ptr [si]
+    add si, 4
+    add si, cx
+
+    mov ch, byte ptr [si + 1]
+    mov cl, byte ptr [si]
+    add si, 4
+    sub cx, 2
+    mov len_of_string, cx
+    mov di, string
+    cld
+    rep movsb
+    add si, 2
+    mov start_of_rules, si 
 changing_string:
     cmp applying_flag, 1
     jne change
@@ -33,17 +59,22 @@ change:
     mov applying_flag, 0
     call reading_rules
     cmp ending_flag, 2
-    je null_term
+    je printing
     call applying_rules
     cmp ending_flag, 1
     jne changing_string
     cmp applying_flag, 1
     jne changing_string
-null_term:
-    lea si, string
-    mov [si+len_of_string], '$'
 printing:
-    call print_message
+    mov dx, string
+    mov ax, 0900h
+    int 21h
+
+    mov ah, 02h
+    mov dl, 0Dh
+    int 21h
+    mov dl, 0Ah
+    int 21h
 exit:
     mov ax, 4C00h
     int 21h
@@ -52,7 +83,7 @@ applying_rules proc
     mov bx, len_before
     mov dx, len_after
 
-    lea si, string
+    mov si, string
     mov di, si
 next_char:
     cld
@@ -80,7 +111,7 @@ next_char:
     jmp shift_left
 
 done:
-    lea di, string
+    mov di, string
     add di, len_of_string
     mov byte ptr [di], '$'
     ret
@@ -98,18 +129,28 @@ shift_right:
 
     mov dx, si
     mov bx, len_of_string
-    add bx, offset string
+    add bx, string
     dec dx
     add dx, len_before
     sub bx, dx
     xchg bx, dx
 
     mov bx, len_of_string
-    lea si, [string+bx-1]
+
+    mov si, string
+    add si, bx  ; !!!!!!!!!!!
+    dec si
+
+
     mov bx, difference
-    lea di, [si+bx]
+
+    lea di, [si+bx]     ; !!!!!!!!!!!!!!
+;    mov di, si
+;    add di, bx
+
+
     add len_of_string, bx
-    cmp len_of_string, 32768d
+    cmp len_of_string, 32768d    ; Reduced size check
     ja over_limit
     mov cx, dx
     pop dx
@@ -125,9 +166,9 @@ over_limit:
     sub len_of_string, bx
     mov applying_flag, 1
     mov ending_flag, 1
-    pop si
-    pop si
-    pop si
+    pop dx
+    pop bx
+    pop di
     pop si
     jmp done
 
@@ -139,7 +180,7 @@ insert:
     mov di, si
     mov si, rule_after
     rep movsb
-    lea si, string
+    mov si, string
     mov applying_flag, 1
     jmp done
 
@@ -157,11 +198,11 @@ shift_left:
     mov dx, si
     push dx
     mov dx, bx
-    lea si, [di+bx] ; 1 2 111
+    lea si, [di+bx]
     add di, len_after
 
     mov bx, len_of_string
-    add bx, offset string
+    add bx, string
     sub bx, dx
     pop dx
     sub bx, dx
@@ -176,7 +217,7 @@ shift_left:
     cld
     rep movsb
 
-    lea si, string
+    mov si, string
     add si, len_of_string
     mov [si], byte ptr '$'
 
@@ -186,9 +227,9 @@ shift_left:
 applying_rules endp
 
 reading_rules proc
-    mov bx, rule_count          ; counter of the rule to use
+    mov bx, rule_count
     mov si, start_of_rules
-    mov dh, byte ptr [si + 1]   ; rule section counter
+    mov dh, byte ptr [si + 1]
     mov dl, byte ptr [si]
     add si, 4
 reading_loop:
@@ -247,86 +288,22 @@ return:
 end_of_rules:
     mov ending_flag, 2
     ret
-reading_rules endp
-
-print_message proc
-    mov ax, @data
-    mov ds, ax
-    mov es, ax
-    mov dx, offset string
-    mov ax, 0900h
-    int 21h
-
-    mov ah, 02h
-    mov dl, 0Dh
-    int 21h
-    mov dl, 0Ah
-    int 21h
-    ret
-print_message endp
-
-get_filename proc
-    mov ax, @data    ; delete in .com
-    mov es, ax       ; delete in .com
-
-    xor ch, ch
-    mov cl, ds:[80h]
-    dec cl
-    jle read_end
     
-    mov si, 82h
-    lea di, filename
-    cld
-    rep movsb
+reading_rules endp
+rule_count   dw 0
+rule_before  dw 0
+rule_after   dw 0
+len_of_string dw 0
+len_before   dw 0
+len_after    dw 0
+filename     db 64 dup(0), '$'
+start_of_rules dw 0
+file_handle  dw 0
+ending_flag  db 0
+applying_flag db 0
+difference   dw 0
+buffer dw ?
+string dw ?
 
-    mov ds, ax       ; delete in .com
-
-    mov [di], byte ptr '$'
-read_end:
-    ret
-get_filename endp
-
-open_file proc
-    mov ax, 3d00h
-    lea dx, filename
-    int 21h
-    mov file_handle, ax
-
-open_file endp
-
-read_file proc
-    mov ax, 3F00h
-    mov bx, file_handle
-    lea dx, buffer
-    mov cx, buffer_size
-    int 21h
-    ret
-read_file endp
-
-close_file proc
-    mov ax, 3E00h
-    mov bx, file_handle
-    int 21h
-    ret
-close_file endp
-
-writing_string proc
-    lea si, buffer
-    mov cx, word ptr [si]
-    add si, 4
-    add si, cx
-
-    mov ch, byte ptr [si + 1]
-    mov cl, byte ptr [si]
-    add si, 4
-    sub cx, 2
-    mov len_of_string, cx
-    lea di, string
-    cld
-    rep movsb
-    add si, 2
-    mov start_of_rules, si 
-    ret
-writing_string endp
-
+end_of_code:
 end start
