@@ -2,52 +2,66 @@
 .code
 org 100h
 start:
-    xor ch, ch
-    mov cl, ds:[80h]
-    dec cl
-    jle open_file
-    
+    jmp main
+rule_count   dw 0
+rule_before  dw 0
+rule_after   dw 0
+len_of_string dw 0
+len_before   dw 0
+len_after    dw 0
+start_of_rules dw 0
+ending_flag  db 0
+applying_flag db 0
+difference   dw 0
+buffer dw ?
+string dw ?
+filename dw ?
+
+main:
+    mov bx, offset end_of_code
+    mov filename, bx
+    add bx, 64
+    mov buffer, bx  ; place to buffer the address of the end of code segment
+    add bx, 32000
+    mov string, bx  ; place to string the address of the end of the buffer
+
     mov si, 82h
-    lea di, filename
+    mov di, [filename]
     cld
     rep movsb
 
     mov [di], byte ptr '$'
 open_file:
-    mov ax, 3d00h
-    lea dx, filename
+    mov ah, 3dh
+    mov dx, [filename]
     int 21h
-    mov file_handle, ax
+    mov bx, ax
 read_file:
-    mov bx, offset end_of_code
-    mov buffer, bx  ; place to buffer the address of the end of code segment
-    add bx, 32000
-    mov string, bx  ; place to string the address of the end of the buffer
-
-    mov ax, 3F00h
-    mov bx, file_handle
-    mov dx, buffer
-    mov cx, 5000
+    mov ax, 3f00h
+    mov dx, [buffer]
+    mov cx, 32000
     int 21h
 close_file:
-    mov ax, 3E00h
-    mov bx, file_handle
+    mov ax, 3e00h
+    inc ah
     int 21h
 writing_string:
-    mov si, buffer
+    mov si, [buffer]
     mov cx, word ptr [si]
     add si, 4
     add si, cx
 
-    mov ch, byte ptr [si + 1]
+    mov ch, byte ptr [si + 1]       ;!!!!!!!!!!!!!! MOVE
     mov cl, byte ptr [si]
     add si, 4
-    sub cx, 2
+    dec cx
+    dec cx
     mov len_of_string, cx
-    mov di, string
+    mov di, [string]
     cld
     rep movsb
-    add si, 2
+    inc si
+    inc si
     mov start_of_rules, si 
 changing_string:
     cmp applying_flag, 1
@@ -66,7 +80,7 @@ change:
     cmp applying_flag, 1
     jne changing_string
 printing:
-    mov dx, string
+    mov dx, [string]
     mov ax, 0900h
     int 21h
 
@@ -83,7 +97,7 @@ applying_rules proc
     mov bx, len_before
     mov dx, len_after
 
-    mov si, string
+    mov si, [string]
     mov di, si
 next_char:
     cld
@@ -106,12 +120,12 @@ next_char:
     dec si
     dec di
     cmp dx, bx
-    je insert1
+    je insert
     jg shift_right
     jmp shift_left
 
 done:
-    mov di, string
+    mov di, [string]
     add di, len_of_string
     mov byte ptr [di], '$'
     ret
@@ -129,7 +143,7 @@ shift_right:
 
     mov dx, si
     mov bx, len_of_string
-    add bx, string
+    add bx, [string]
     dec dx
     add dx, len_before
     sub bx, dx
@@ -137,7 +151,7 @@ shift_right:
 
     mov bx, len_of_string
 
-    mov si, string
+    mov si, [string]
     add si, bx  ; !!!!!!!!!!!
     dec si
 
@@ -172,15 +186,12 @@ over_limit:
     pop si
     jmp done
 
-insert1:
-    cmp dx, 0
-    jne insert
 insert:
     mov cx, dx
     mov di, si
     mov si, rule_after
     rep movsb
-    mov si, string
+    mov si, [string]
     mov applying_flag, 1
     jmp done
 
@@ -202,7 +213,7 @@ shift_left:
     add di, len_after
 
     mov bx, len_of_string
-    add bx, string
+    add bx, [string]
     sub bx, dx
     pop dx
     sub bx, dx
@@ -217,7 +228,7 @@ shift_left:
     cld
     rep movsb
 
-    mov si, string
+    mov si, [string]
     add si, len_of_string
     mov [si], byte ptr '$'
 
@@ -233,8 +244,8 @@ reading_rules proc
     mov dl, byte ptr [si]
     add si, 4
 reading_loop:
-    cmp dx, 0
-    je end_of_rules
+    test dx, dx
+    jz end_of_rules
     dec bx
     mov rule_before, si
     xor cx, cx
@@ -269,8 +280,8 @@ skip_comment:
     dec dx
     cmp al, 0Ah
     jne skip_comment
-    cmp bx, 0
-    jne reading_loop
+    test bx, bx
+    jnz reading_loop
 final_state:
     cmp len_after, 0
     je return
@@ -290,20 +301,6 @@ end_of_rules:
     ret
     
 reading_rules endp
-rule_count   dw 0
-rule_before  dw 0
-rule_after   dw 0
-len_of_string dw 0
-len_before   dw 0
-len_after    dw 0
-filename     db 64 dup(0), '$'
-start_of_rules dw 0
-file_handle  dw 0
-ending_flag  db 0
-applying_flag db 0
-difference   dw 0
-buffer dw ?
-string dw ?
 
 end_of_code:
 end start
