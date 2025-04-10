@@ -85,13 +85,16 @@ change:
     jne changing_string
 printing:
     mov si, 32000
-    add si, cs:[len_of_string]
-    mov [si], byte ptr '$'
-    mov dx, 32000 ; string
-    mov ax, 0900h
-    int 21h
-
+    xor dh, dh
+print_loop:
     mov ah, 02h
+    mov dl, [si]
+    test dl, dl
+    jz end_print
+    int 21h
+    inc si
+    jmp print_loop
+end_print:
     mov dl, 0Dh
     int 21h
     mov dl, 0Ah
