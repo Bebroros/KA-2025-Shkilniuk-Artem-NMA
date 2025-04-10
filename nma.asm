@@ -10,7 +10,7 @@ len_of_string dw 0
 len_before   dw 0
 len_after    dw 0
 start_of_rules dw 0
-ending_flag  db 0
+ending_flag  db 0   ; 110
 applying_flag db 0
 difference   dw 0
 ; buffer dw 65
@@ -59,7 +59,7 @@ writing_string:
     mov di, 32000 ; string
     cld
     rep movsb
-    mov [di], byte ptr '$'
+    mov [di], byte ptr 0
     inc si
     inc si
 
@@ -79,11 +79,14 @@ change:
     cmp cs:[ending_flag], 2
     je printing
     call applying_rules
-    cmp ending_flag, 1
+    cmp cs:[ending_flag], 1
     jne changing_string
-    cmp applying_flag, 1
+    cmp cs:[applying_flag], 1
     jne changing_string
 printing:
+    mov si, 32000
+    add si, cs:[len_of_string]
+    mov [si], byte ptr '$'
     mov dx, 32000 ; string
     mov ax, 0900h
     int 21h
@@ -99,15 +102,18 @@ exit:
 
 applying_rules proc
     mov bx, cs:[len_before]
+
     mov dx, cs:[len_after]
 
     mov si, 32000 ; string
     mov di, si
+    test bx, bx
+    jz shift_right
 next_char:
     cld
     lodsb
     inc di
-    cmp al, '$'
+    cmp al, 0
     je done
     push di
     push si
@@ -131,7 +137,7 @@ next_char:
 done:
     mov di, 32000 ; string
     add di, cs:[len_of_string]
-    mov byte ptr [di], '$'
+    mov byte ptr [di], 0
     ret
 
 shift_right:
@@ -180,7 +186,7 @@ shift_right:
     pop di
     pop si
     jmp insert
-over_limit:
+over_limit:  
     sub cs:[len_of_string], bx
     mov cs:[applying_flag], 1
     mov cs:[ending_flag], 1
@@ -234,7 +240,7 @@ shift_left:
 
     mov si, 32000
     add si, cs:[len_of_string]
-    mov [si], byte ptr '$'
+    mov [si], byte ptr 0
 
     pop di
     pop si
@@ -294,6 +300,8 @@ final_state:
     je return
 
     mov si, cs:[rule_after]
+    cmp [si], byte ptr '.'
+    je final_state_approved
     add si, cs:[len_after]
     dec si
 
@@ -302,6 +310,11 @@ final_state:
     dec cs:[len_after]
     inc cs:[ending_flag]
 return:
+    ret
+final_state_approved:
+    inc cs:[rule_after]
+    dec cs:[len_after]
+    inc cs:[ending_flag]
     ret
 end_of_rules:
     mov cs:[ending_flag], 2

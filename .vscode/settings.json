@@ -13,7 +13,7 @@
             "run": [
               "TASM /s /m /n /q /zn ${file}",
               "TLINK /3 /t /n /x ${filename}",
-              "RUN ${filename} input.nma"
+              "RUN ${filename} STD1_02.nma"
             ],
             "debug": [
               "TASM /s /m /n /q /zn  ${file}",
