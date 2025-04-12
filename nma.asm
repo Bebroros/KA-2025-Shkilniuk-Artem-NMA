@@ -4,13 +4,8 @@ org 100h
 start:
     mov bx, 4000h
     mov es, bx
-
-    xor bh, bh
-    mov bl, [80h]
-    mov byte ptr[bx+81h], '$'
-
 open_file:
-    mov ax, 3d00h
+    mov ah, 3dh
     mov dx, 0082h
     int 21h
     xchg bx, ax
@@ -54,14 +49,13 @@ change:
     mov applying_flag, 0
     push ds
     call reading_rules
-    cmp cs:[ending_flag], 2
-    je printing
     call applying_rules
     pop ds
-    mov al, [applying_flag]
-    and al, [ending_flag]
-    cmp al, 1
-    jne changing_string
+    mov al, [ending_flag]
+    cmp al, 2
+    je printing
+    test al, [applying_flag]
+    jz changing_string
 printing:
     push es
     pop ds
@@ -108,34 +102,25 @@ next_char:
     jg shift_right
 shift_left:
     push si
-    push di
-    push bx
-    push dx
 
     mov ax, bx
     sub ax, dx
 
-
-    mov dx, si
-    push dx
-    mov dx, bx
-    lea si, [di+bx]
-    add di, cs:[len_after]          
-
     mov cx, cs:[len_of_string]
+    sub cx, si
+
+    lea si, [di+bx]
+    add di, dx
+
+
     add ch, 7dh
-    sub cx, dx
-    pop dx
-    sub cx, dx
+    sub cx, bx
 
     sub cs:[len_of_string], ax
 
-    pop dx
-    pop bx
     
     rep movsb
 
-    pop di
     pop si
 insert:
     mov cx, dx
@@ -151,24 +136,21 @@ done:
 
 shift_right:
     push si
-    push bx
     push dx
     sub dx, bx
-    push dx
 
     add bx, si
     dec bx
     mov cx, cs:[len_of_string]
-    push cx
+
+    mov si, 31999
+    add si, cx
+
     add ch, 7dh ; string
     sub cx, bx
 
-    pop bx
 
-    mov si, 31999
-    add si, bx      ; to the end of the string
-
-    pop bx
+    xchg bx, dx
 
     lea di, [si+bx]
 
@@ -176,7 +158,6 @@ shift_right:
     cmp cs:[len_of_string], 32768d
     ja over_limit
     pop dx
-    pop bx
 
     std
     rep movsb
@@ -187,7 +168,7 @@ over_limit:
     sub cs:[len_of_string], bx
     inc cs:[applying_flag]
     inc cs:[ending_flag]
-    add sp, 6
+    add sp, 4
     jmp done
 applying_rules endp
 
