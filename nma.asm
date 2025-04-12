@@ -12,23 +12,18 @@ len_after    dw 0
 start_of_rules dw 0
 ending_flag  db 0   ; 110
 applying_flag db 0
-difference   dw 0
-; buffer dw 65
-; string dw 32064
-; filename dw 0
 
 main:
     mov bx, 4000h
     mov es, bx
 
-    xor bx, bx
+    xor bh, bh
     mov bl, byte ptr ds:[80h]
     mov byte ptr[bx+81h], '$'
 
-    push ds
 open_file:
     mov ax, 3d00h
-    xor dx, dx
+    xor dh, dh
     mov dl, 82h
     int 21h
     mov bx, ax
@@ -37,12 +32,12 @@ open_file:
     mov ax, es
     mov ds, ax
 read_file:
-    mov ax, 3f00h
+    mov ah, 3fh
     xor dx, dx
     mov cx, 32000
     int 21h
 close_file:
-    mov ax, 3e00h
+    mov ah, 3eh
     inc ah
     int 21h
 writing_string:
@@ -100,7 +95,7 @@ end_print:
     mov dl, 0Ah
     int 21h
 exit:
-    mov ax, 4C00h
+    mov ah, 4Ch
     int 21h
 
 applying_rules proc
@@ -124,7 +119,6 @@ next_char:
     mov di, cs:[rule_before]
 
     dec si
-    cld
     rep cmpsb
     pop si
     pop di
@@ -144,37 +138,32 @@ done:
     ret
 
 shift_right:
-    push dx
-    sub dx, bx
-    mov cs:[difference], dx
-    pop dx
-
     push si
     push di
     push bx
     push dx
-
-    mov dx, si
-    mov bx, cs:[len_of_string]
-    add bx, 32000 ; string
-    dec dx
-    add dx, cs:[len_before]
-    sub bx, dx
-    xchg bx, dx
-
-    mov bx, cs:[len_of_string]
-
-    mov si, 32000 ; string
-    add si, bx  ; !!!!!!!!!!!
-    dec si
+    sub dx, bx
+    mov ax, dx
+    push dx
 
 
-    mov bx, cs:[difference]
+    mov bx, si
+    mov dx, cs:[len_of_string]
+    push dx
+    add dx, 32000 ; string
+    dec bx
+    add bx, cs:[len_before]
+    sub dx, bx
 
-    lea di, [si+bx]     ; !!!!!!!!!!!!!!
-;    mov di, si
-;    add di, bx
+    pop bx
 
+    mov si, 31999
+    add si, bx
+
+
+    pop bx
+
+    lea di, [si+bx]
 
     add cs:[len_of_string], bx
     cmp cs:[len_of_string], 32768d
@@ -191,12 +180,9 @@ shift_right:
     jmp insert
 over_limit:  
     sub cs:[len_of_string], bx
-    mov cs:[applying_flag], 1
-    mov cs:[ending_flag], 1
-    pop dx
-    pop bx
-    pop di
-    pop si
+    inc cs:[applying_flag]
+    inc cs:[ending_flag]
+    add sp, 8
     jmp done
 
 insert:
@@ -205,13 +191,13 @@ insert:
     mov si, cs:[rule_after]
     rep movsb
     mov si, 32000 ; string
-    mov cs:[applying_flag], 1
+    inc cs:[applying_flag]
     jmp done
 
 shift_left:
     push bx
     sub bx, dx
-    mov cs:[difference], bx
+    mov ax, bx
     pop bx
     
     push si
@@ -231,14 +217,13 @@ shift_left:
     pop dx
     sub bx, dx
 
-    mov cx, cs:[difference]
+    mov cx, ax
     sub cs:[len_of_string], cx
 
     mov cx, bx
     pop dx
     pop bx
     
-    cld
     rep movsb
 
     mov si, 32000
@@ -277,7 +262,6 @@ rule_b:
     mov cs:[rule_after], si
     xor cx, cx
 rule_a:
-    cld
     lodsb
     inc cx
     dec dx    
@@ -286,26 +270,22 @@ rule_a:
     dec cx
     mov cs:[len_after], cx
 skip_comment:
-    cld
-    lodsb
+    dec si
+    lodsw
     dec dx
-    cmp al, 0Dh
-    jne skip_comment
-    cld
-    lodsb
-    dec dx
-    cmp al, 0Ah
+    cmp ax, 0A0Dh
     jne skip_comment
     test bx, bx
     jnz reading_loop
 final_state:
-    cmp cs:[len_after], 0
+    mov ax, cs:[len_after]
+    cmp ax, 0
     je return
 
     mov si, cs:[rule_after]
     cmp [si], byte ptr '.'
     je final_state_approved
-    add si, cs:[len_after]
+    add si, ax
     dec si
 
     cmp [si], byte ptr '.'
@@ -313,16 +293,14 @@ final_state:
     dec cs:[len_after]
     inc cs:[ending_flag]
 return:
-    ret
+    ret ; !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 final_state_approved:
     inc cs:[rule_after]
     dec cs:[len_after]
     inc cs:[ending_flag]
-    ret
+    ret ; !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 end_of_rules:
     mov cs:[ending_flag], 2
-    ret
-    
+    ret ; !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 reading_rules endp
-
 end start
